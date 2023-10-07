@@ -1,0 +1,53 @@
+name: Build and Lint
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+  push:
+
+jobs:
+  check-skippable:
+    continue-on-error: true
+    runs-on: ubuntu-22.04
+    # Minimum permissions required by skip-duplicate-actions
+    permissions:
+      actions: write
+      contents: read
+    outputs:
+      skippable: ${{ steps.check.outputs.should_skip }}
+    steps:
+      - id: check
+        uses: fkirc/skip-duplicate-actions@12aca0a884f6137d619d6a8a09fcc3406ced5281 # v5.3.0
+
+  build-lint:
+    name: Build and Lint
+    needs: check-skippable
+    if: needs.check-skippable.outputs.skippable != 'true'
+
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout the source
+        uses: actions/checkout@3df4ab11eba7bda6032a0b82a6bb43b11571feac # v4.0.0
+        with:
+          show-progress: false
+          submodules: recursive
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@d882d12c64e032187b2edb46d3a0d003b7a43598 # v2.4.0
+        with:
+          standalone: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@5e21ff4d9bc1a8cf6de233a3057d20ec6b3fb69d # v3.8.1
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - run: pnpm build
+
+      - run: pnpm lint
